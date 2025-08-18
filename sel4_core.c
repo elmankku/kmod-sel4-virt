@@ -224,10 +224,38 @@ static int sel4_iohandler_release(struct inode *inode, struct file *filp)
 	return 0;
 }
 
+static loff_t sel4_iohandler_seek(struct file* file, loff_t offset, int whence)
+{
+    struct sel4_mem_map *map = file->private_data;
+    loff_t new_pos;
+
+    switch (whence) {
+        case SEEK_SET:
+            new_pos = offset;
+            break;
+        case SEEK_CUR:
+            new_pos = file->f_pos + offset;
+            break;
+        case SEEK_END:
+            new_pos = map->size + offset;
+            break;
+        default:
+            return -EINVAL;
+    }
+
+    if (new_pos < 0 ) {
+        return -EINVAL;
+    }
+
+    file->f_pos = new_pos;
+
+    return new_pos;
+}
+
 static struct file_operations sel4_iohandler_fops = {
 	.release        = sel4_iohandler_release,
 	.mmap           = sel4_vm_mmap,
-	.llseek		= noop_llseek,
+	.llseek		= sel4_iohandler_seek,
 };
 
 static const char *map_names[NUM_SEL4_MEM_MAP] = {
