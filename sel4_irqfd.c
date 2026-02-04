@@ -12,8 +12,14 @@
 #include <linux/eventfd.h>
 #include <linux/list.h>
 #include <linux/slab.h>
+#include <linux/version.h>
 
 #include "sel4_virt_drv.h"
+
+/* compatibility for older kernels */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 7, 0)
+#define fd_file(fd) ((fd).file)
+#endif
 
 struct sel4_irqfd {
 	struct sel4_vm		*vm;
@@ -107,12 +113,12 @@ static int sel4_irqfd_assign(struct sel4_vm *vm,
 	INIT_LIST_HEAD(&irqfd->list);
 	INIT_WORK(&irqfd->cleanup, sel4_irqfd_cleanup_work);
 	fd = fdget(config->fd);
-	if (!fd.file) {
+	if (!fd_file(fd)) {
 		rc = -EBADF;
 		goto err_free;
 	}
 
-	irqfd->eventfd = eventfd_ctx_fileget(fd.file);
+	irqfd->eventfd = eventfd_ctx_fileget(fd_file(fd));
 	if (IS_ERR(irqfd->eventfd )) {
 		rc = PTR_ERR(irqfd->eventfd);
 		goto err_put;
@@ -133,7 +139,7 @@ static int sel4_irqfd_assign(struct sel4_vm *vm,
 	sel4_vm_unlock(vm, irqflags);
 
 	/* Check the pending event in this stage */
-	events = vfs_poll(fd.file, &irqfd->pt);
+	events = vfs_poll(fd_file(fd), &irqfd->pt);
 
 	if (events & EPOLLIN)
 		sel4_irqfd_inject(irqfd);
